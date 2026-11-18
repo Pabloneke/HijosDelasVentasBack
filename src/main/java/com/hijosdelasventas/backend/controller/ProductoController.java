@@ -54,6 +54,8 @@ public class ProductoController {
     public ResponseEntity<Producto> actualizarProducto(@PathVariable Long id, @Valid @RequestBody Producto producto) {
         return productoService.obtenerPorId(id).map(p -> {
             producto.setId(id);
+            // El mantenedor del front no envia el descuento: se conserva el que ya tenia
+            if (producto.getDescuento() == null) producto.setDescuento(p.getDescuento());
             return ResponseEntity.ok(productoService.guardar(producto));
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }

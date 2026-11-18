@@ -91,4 +91,41 @@ public class BoletaServiceTest {
         assertEquals("Stock insuficiente para el producto: Mouse Gamer", excepcion.getMessage());
         verify(boletaRepository, never()).save(any(Boleta.class)); // Verificamos que NUNCA guarde la boleta
     }
+
+    @Test
+    void probarCompraConDescuentoCobraPrecioRebajado() {
+        Producto perfume = new Producto();
+        perfume.setId(1L);
+        perfume.setName("Perfume");
+        perfume.setStock(10);
+        perfume.setPrice(50000);
+        perfume.setDescuento(20); // 50000 -> 40000 por unidad
+
+        DetalleBoleta detalle = new DetalleBoleta();
+        detalle.setProducto(perfume);
+        detalle.setQuantity(2);
+
+        Boleta boleta = new Boleta();
+        boleta.setItems(new ArrayList<>(java.util.List.of(detalle)));
+
+        when(productoRepository.findById(1L)).thenReturn(Optional.of(perfume));
+        when(boletaRepository.save(any(Boleta.class))).thenReturn(boleta);
+
+        boletaService.comprar(boleta);
+
+        assertEquals(40000, detalle.getPrice());
+        assertEquals(80000, boleta.getTotal());
+    }
+
+    @Test
+    void probarBoletaSinItemsSeRechaza() {
+        Boleta boleta = new Boleta();
+        boleta.setItems(new ArrayList<>());
+
+        IllegalArgumentException excepcion = assertThrows(IllegalArgumentException.class,
+                () -> boletaService.comprar(boleta));
+
+        assertEquals("La boleta no tiene productos", excepcion.getMessage());
+        verify(boletaRepository, never()).save(any(Boleta.class));
+    }
 }
