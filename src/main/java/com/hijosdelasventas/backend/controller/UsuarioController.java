@@ -1,10 +1,8 @@
 package com.hijosdelasventas.backend.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,11 +19,13 @@ import com.hijosdelasventas.backend.service.UsuarioService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/usuarios")
 @Tag(name = "Usuarios", description = "API para la gestión de usuarios y roles")
 public class UsuarioController {
+
     @Autowired
     private UsuarioService usuarioService;
 
@@ -45,24 +45,16 @@ public class UsuarioController {
 
     @PostMapping
     @Operation(summary = "Crear un nuevo usuario", description = "Encripta la contraseña automáticamente")
-    public ResponseEntity<?> crear(@RequestBody Usuario usuario) {
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.guardar(usuario, false));
-        } catch (DataIntegrityViolationException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo o RUN ya están registrados"));
-        }
+    public ResponseEntity<Usuario> crear(@Valid @RequestBody Usuario usuario) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.guardar(usuario, false));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar un usuario", description = "Mantiene la contraseña anterior si no se envía una nueva")
-    public ResponseEntity<?> actualizar(@PathVariable Long id, @RequestBody Usuario usuario) {
+    public ResponseEntity<Usuario> actualizar(@PathVariable Long id, @Valid @RequestBody Usuario usuario) {
         return usuarioService.obtenerPorId(id).map(u -> {
             usuario.setId(id);
-            try {
-                return ResponseEntity.ok(usuarioService.guardar(usuario, true));
-            } catch (DataIntegrityViolationException e) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo o RUN ya están en uso"));
-            }
+            return ResponseEntity.ok(usuarioService.guardar(usuario, true));
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 

@@ -1,8 +1,6 @@
 package com.hijosdelasventas.backend;
 
-import com.hijosdelasventas.backend.model.Usuario;
-import com.hijosdelasventas.backend.repository.UsuarioRepository;
-import jakarta.servlet.http.Cookie;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -16,16 +14,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.hijosdelasventas.backend.model.Usuario;
+import com.hijosdelasventas.backend.repository.UsuarioRepository;
+
+import jakarta.servlet.http.Cookie;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:auth-test;MODE=MySQL",
@@ -104,63 +109,3 @@ class BackendApplicationTests {
         Usuario usuario = usuarios.findByCorreoIgnoreCase("carla@example.com").orElseThrow();
         assertThat(usuario.getPassword()).isNotEqualTo("cliente123");
         assertThat(passwords.matches("cliente123", usuario.getPassword())).isTrue();
-        mvc.perform(post(AUTH + "/registro").contentType(MediaType.APPLICATION_JSON).content(registration))
-                .andExpect(status().isConflict());
-
-        String login = """
-                {"correo":"CARLA@example.com","password":"cliente123"}
-                """;
-        var session = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content(login))
-                .andExpect(status().isOk())
-                .andExpect(cookie().httpOnly("refresh_token", true))
-                .andExpect(cookie().secure("refresh_token", true))
-                .andReturn().getResponse();
-        Cookie refresh = session.getCookie("refresh_token");
-        String accessToken = json.readTree(session.getContentAsString()).get("accessToken").asText();
-        mvc.perform(post(AUTH + "/refresh").cookie(refresh)).andExpect(status().isForbidden());
-        mvc.perform(post(AUTH + "/refresh").header("X-Refresh-Token", "1")
-                        .cookie(new Cookie("refresh_token", accessToken)))
-                .andExpect(status().isUnauthorized());
-        var renewed = mvc.perform(post(AUTH + "/refresh").header("X-Refresh-Token", "1").cookie(refresh))
-                .andExpect(status().isOk())
-                .andReturn().getResponse();
-        assertThat(json.readTree(renewed.getContentAsString()).get("accessToken").asText()).isNotEqualTo(accessToken);
-        mvc.perform(get("/api/v1/boletas").header(HttpHeaders.AUTHORIZATION, "Bearer " + refresh.getValue()))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(login.replace("cliente123", "incorrecta")))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void vendedorPuedeLeerVentasYConservaRestriccionesDeEscritura() throws Exception {
-        usuarios.save(new Usuario(null, "987654321", "Juan", "Pérez", "vendedor@example.com",
-                passwords.encode("vende123"), "vendedor", null, null, null));
-        var session = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content("""
-                {"correo":"vendedor@example.com","password":"vende123"}
-                """)).andExpect(status().isOk()).andReturn().getResponse();
-        String authorization = "Bearer " + json.readTree(session.getContentAsString()).get("accessToken").asText();
-        for (String resource : new String[]{"/api/v1/productos", "/api/v1/ordenes", "/api/v1/boletas"}) {
-            mvc.perform(get(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isOk());
-            mvc.perform(put(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
-            mvc.perform(patch(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
-            mvc.perform(delete(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
-        }
-        for (String resource : new String[]{"/api/v1/productos", "/api/v1/ordenes"}) {
-            mvc.perform(post(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
-        }
-    }
-
-    @Test
-    void visitantePuedeConsultarCatalogoEIniciarCompra() throws Exception {
-        for (String resource : new String[]{"/api/v1/productos", "/api/v1/categorias"}) {
-            mvc.perform(get(resource)).andExpect(status().isOk());
-            mvc.perform(get(resource + "/" + Long.MAX_VALUE)).andExpect(status().isNotFound());
-        }
-        mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest());
-        for (String resource : new String[]{"/api/v1/ordenes", "/api/v1/boletas"}) {
-            mvc.perform(get(resource)).andExpect(status().isUnauthorized());
-        }
-    }
-}

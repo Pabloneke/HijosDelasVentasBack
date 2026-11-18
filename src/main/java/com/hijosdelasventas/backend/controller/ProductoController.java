@@ -19,11 +19,13 @@ import com.hijosdelasventas.backend.service.ProductoService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/productos")
 @Tag(name = "Productos", description = "API para la gestión del catálogo")
 public class ProductoController {
+
     @Autowired
     private ProductoService productoService;
 
@@ -43,13 +45,13 @@ public class ProductoController {
 
     @PostMapping
     @Operation(summary = "Crear un nuevo producto")
-    public ResponseEntity<Producto> crearProducto(@RequestBody Producto producto) {
+    public ResponseEntity<Producto> crearProducto(@Valid @RequestBody Producto producto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(productoService.guardar(producto));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar un producto existente")
-    public ResponseEntity<Producto> actualizarProducto(@PathVariable Long id, @RequestBody Producto producto) {
+    public ResponseEntity<Producto> actualizarProducto(@PathVariable Long id, @Valid @RequestBody Producto producto) {
         return productoService.obtenerPorId(id).map(p -> {
             producto.setId(id);
             return ResponseEntity.ok(productoService.guardar(producto));
