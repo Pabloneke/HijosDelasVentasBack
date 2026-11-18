@@ -1,16 +1,23 @@
 package com.hijosdelasventas.backend.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "categoria")
-@Data // Genera automáticamente getters, setters, toString, equals y hashCode
-@NoArgsConstructor // Genera el constructor vacío Categoria()
-@AllArgsConstructor // Genera el constructor con argumentos Categoria(Long id, String nombre)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Categoria {
 
     @Id
