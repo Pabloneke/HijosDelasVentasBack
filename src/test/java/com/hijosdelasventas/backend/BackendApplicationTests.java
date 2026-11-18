@@ -72,7 +72,7 @@ class BackendApplicationTests {
                 .andExpect(status().isOk())
                 .andReturn().getResponse();
         assertThat(json.readTree(renewed.getContentAsString()).get("accessToken").asText()).isNotEqualTo(accessToken);
-        mvc.perform(get("/api/v1/productos").header(HttpHeaders.AUTHORIZATION, "Bearer " + refresh.getValue()))
+        mvc.perform(get("/api/v1/boletas").header(HttpHeaders.AUTHORIZATION, "Bearer " + refresh.getValue()))
                 .andExpect(status().isUnauthorized());
         mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON)
                         .content(login.replace("cliente123", "incorrecta")))
@@ -80,7 +80,7 @@ class BackendApplicationTests {
     }
 
     @Test
-    void vendedorPuedeLeerPeroNoEscribir() throws Exception {
+    void vendedorPuedeLeerVentasYConservaRestriccionesDeEscritura() throws Exception {
         usuarios.save(new Usuario(null, "987654321", "Juan", "Pérez", "vendedor@example.com",
                 passwords.encode("vende123"), "vendedor", null, null, null));
         var session = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content("""
@@ -88,12 +88,26 @@ class BackendApplicationTests {
                 """)).andExpect(status().isOk()).andReturn().getResponse();
         String authorization = "Bearer " + json.readTree(session.getContentAsString()).get("accessToken").asText();
         for (String resource : new String[]{"/api/v1/productos", "/api/v1/ordenes", "/api/v1/boletas"}) {
-            mvc.perform(get(resource)).andExpect(status().isUnauthorized());
             mvc.perform(get(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isOk());
-            mvc.perform(post(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
             mvc.perform(put(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
             mvc.perform(patch(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
             mvc.perform(delete(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
+        }
+        for (String resource : new String[]{"/api/v1/productos", "/api/v1/ordenes"}) {
+            mvc.perform(post(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void visitantePuedeConsultarCatalogoEIniciarCompra() throws Exception {
+        for (String resource : new String[]{"/api/v1/productos", "/api/v1/categorias"}) {
+            mvc.perform(get(resource)).andExpect(status().isOk());
+            mvc.perform(get(resource + "/" + Long.MAX_VALUE)).andExpect(status().isNotFound());
+        }
+        mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+        for (String resource : new String[]{"/api/v1/ordenes", "/api/v1/boletas"}) {
+            mvc.perform(get(resource)).andExpect(status().isUnauthorized());
         }
     }
 }
