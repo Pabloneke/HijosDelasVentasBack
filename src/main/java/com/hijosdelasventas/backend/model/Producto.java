@@ -1,6 +1,7 @@
 package com.hijosdelasventas.backend.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -41,6 +42,11 @@ public class Producto {
     @Min(value = 0)
     @Column(name = "stock_critico", nullable = false)
     private Integer stockCritico;
+
+    // Porcentaje de descuento (0-90); null significa sin oferta
+    @Min(0)
+    @Max(90)
+    private Integer descuento;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "categoria_id", nullable = false)

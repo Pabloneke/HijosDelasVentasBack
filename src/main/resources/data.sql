@@ -5,13 +5,19 @@ INSERT IGNORE INTO categoria (id, nombre) VALUES (3, 'Librería');
 INSERT IGNORE INTO categoria (id, nombre) VALUES (4, 'Perfumería');
 
 -- 2. 6 Productos (idénticos a db.js)
-INSERT IGNORE INTO producto (id, name, price, image, stock, stock_critico, categoria_id) VALUES
-(1, 'Perfume Rasasi Hawas', 65000, '/img/RasasiHawas.webp', 12, 3, 4),
-(2, 'MousePad XXL Gamer', 15000, '/img/MousePadXXL.webp', 25, 5, 1),
-(3, 'Teclado Mecánico RGB', 45000, '/img/Teclado.webp', 4, 5, 1),
-(4, 'Juego PS4', 20000, '/img/PS14.webp', 8, 3, 2),
-(5, 'GTA VI (Pre-venta)', 70000, '/img/GTA-VI.webp', 50, 10, 2),
-(6, 'Manga Dorohedoro Vol. 1', 12000, '/img/Dorohedoro1.webp', 2, 2, 3);
+INSERT IGNORE INTO producto (id, name, price, image, stock, stock_critico, descuento, categoria_id) VALUES
+(1, 'Perfume Rasasi Hawas', 65000, '/img/RasasiHawas.webp', 12, 3, 20, 4),
+(2, 'MousePad XXL Gamer', 15000, '/img/MousePadXXL.webp', 25, 5, NULL, 1),
+(3, 'Teclado Mecánico RGB', 45000, '/img/Teclado.webp', 4, 5, 15, 1),
+(4, 'Juego PS4', 20000, '/img/PS14.webp', 8, 3, NULL, 2),
+(5, 'GTA VI (Pre-venta)', 70000, '/img/GTA-VI.webp', 50, 10, 25, 2),
+(6, 'Manga Dorohedoro Vol. 1', 12000, '/img/Dorohedoro1.webp', 2, 2, 10, 3);
+
+-- shortcut: re-aplica la oferta en BD ya creadas (la columna descuento es nueva); quitar cuando el admin pueda editar descuentos
+UPDATE producto SET descuento = 20 WHERE id = 1 AND descuento IS NULL;
+UPDATE producto SET descuento = 15 WHERE id = 3 AND descuento IS NULL;
+UPDATE producto SET descuento = 25 WHERE id = 5 AND descuento IS NULL;
+UPDATE producto SET descuento = 10 WHERE id = 6 AND descuento IS NULL;
 
 -- 3. 3 Usuarios con contraseñas BCrypt:
 -- admin@duoc.cl -> admin123

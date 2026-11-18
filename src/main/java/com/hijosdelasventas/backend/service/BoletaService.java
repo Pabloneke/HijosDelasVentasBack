@@ -26,33 +26,37 @@ public class BoletaService {
     public Boleta comprar(Boleta boleta) {
         int totalCalculado = 0;
 
+        if (boleta.getItems() == null || boleta.getItems().isEmpty()) {
+            throw new IllegalArgumentException("La boleta no tiene productos");
+        }
+
         // 1. Recorrer los items para validar stock y blindar precios
-        if (boleta.getItems() != null) {
-            for (DetalleBoleta detalle : boleta.getItems()) {
-                Producto productoDB = productoRepository.findById(detalle.getProducto().getId())
-                        .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado con ID: " + detalle.getProducto().getId()));
+        for (DetalleBoleta detalle : boleta.getItems()) {
+            Producto productoDB = productoRepository.findById(detalle.getProducto().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado con ID: " + detalle.getProducto().getId()));
 
-                // Validación de stock
-                if (productoDB.getStock() < detalle.getQuantity()) {
-                    throw new IllegalArgumentException("Stock insuficiente para el producto: " + productoDB.getName());
-                }
-
-                // Descuento de stock en la base de datos
-                productoDB.setStock(productoDB.getStock() - detalle.getQuantity());
-                productoRepository.save(productoDB);
-
-                // ARREGLO PUNTO 7 DEL BRANCO: Agregamos el producto de la BD al detalle para que el frontend vea los nombres
-                detalle.setProducto(productoDB);
-
-                // SEGURIDAD: Forzamos el precio real desde la base de datos para evitar hackeos desde el frontend
-                detalle.setPrice(productoDB.getPrice());
-
-                // Sumar al total general de la boleta
-                totalCalculado += (detalle.getPrice() * detalle.getQuantity());
-
-                // Asociar la boleta al detalle para mantener la relación bidireccional de Hibernate
-                detalle.setBoleta(boleta);
+            // Validación de stock
+            if (productoDB.getStock() < detalle.getQuantity()) {
+                throw new IllegalArgumentException("Stock insuficiente para el producto: " + productoDB.getName());
             }
+
+            // Descuento de stock en la base de datos
+            productoDB.setStock(productoDB.getStock() - detalle.getQuantity());
+            productoRepository.save(productoDB);
+
+            // ARREGLO PUNTO 7 DEL BRANCO: Agregamos el producto de la BD al detalle para que el frontend vea los nombres
+            detalle.setProducto(productoDB);
+
+            // SEGURIDAD: Forzamos el precio real desde la base de datos para evitar hackeos desde el frontend
+            // Mismo calculo que el front (ofertas.js): el precio cobrado es el rebajado
+            int descuento = productoDB.getDescuento() == null ? 0 : productoDB.getDescuento();
+            detalle.setPrice((int) Math.round(productoDB.getPrice() * (100 - descuento) / 100.0));
+
+            // Sumar al total general de la boleta
+            totalCalculado += (detalle.getPrice() * detalle.getQuantity());
+
+            // Asociar la boleta al detalle para mantener la relación bidireccional de Hibernate
+            detalle.setBoleta(boleta);
         }
 
         // SEGURIDAD: Sobrescribimos el total que viene del frontend con nuestro total real calculado
