@@ -1,6 +1,7 @@
 package com.hijosdelasventas.backend.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -33,12 +34,14 @@ public class BoletaController {
             Boleta nuevaBoleta = boletaService.comprar(boleta);
             return ResponseEntity.status(HttpStatus.CREATED).body(nuevaBoleta); // 201 Created
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage()); // 400 Bad Request por falta de stock
+            // ARREGLO PUNTO 8 DEL BRANCO: Devolver JSON en vez de texto plano
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage())); 
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno al procesar la compra"); // 500
+            // Devolvemos el 500 también como JSON por si acaso
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error interno al procesar la compra")); 
         }
     }
-
+    
     @GetMapping
     @Operation(summary = "Listar todas las boletas", description = "Retorna el historial completo de ventas")
     public ResponseEntity<List<Boleta>> listar() {
