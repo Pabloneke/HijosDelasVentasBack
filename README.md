@@ -1,49 +1,66 @@
 # Backend de Hijos de las Ventas
 
-## Arranque local con PowerShell
+API REST con Spring Boot 4, JPA, MySQL, Spring Security y JWT. Todas las rutas cuelgan de `/api/v1`.
 
-El backend requiere `JWT_SECRET` para arrancar. El valor debe estar codificado en Base64 y contener al menos 32 bytes al decodificarlo.
+## Arranque local
 
-Con MySQL disponible, abre PowerShell en la carpeta `HijosDelasVentasBack` y ejecuta:
+Necesitas **MySQL 8** corriendo en `localhost:3306` con el usuario `root` sin contraseña
+(ajusta `spring.datasource.*` en `src/main/resources/application.properties` si el tuyo es distinto).
+La base `hijosdelasventas_db` se crea sola.
+
+Desde la carpeta `HijosDelasVentasBack`:
 
 ```powershell
-$jwtKey = New-Object byte[] 32
-$generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$generator.GetBytes($jwtKey)
-$generator.Dispose()
-$env:JWT_SECRET = [Convert]::ToBase64String($jwtKey)
-$env:JWT_REFRESH_SECURE_COOKIE = "false"
-
 .\mvnw.cmd spring-boot:run
 ```
 
-Usa `JWT_REFRESH_SECURE_COOKIE=false` solo al probar la renovación de sesión por HTTP local. Para HTTPS, conserva el valor predeterminado `true`.
+No hace falta configurar variables de entorno en desarrollo:
 
-Las variables se aplican a la sesión actual de PowerShell y a los procesos que inicia. Si generas otra clave, los tokens emitidos con la anterior dejarán de ser válidos. Guarda la clave fuera del repositorio.
+- El secreto JWT tiene un valor por defecto **solo para desarrollo**. En producción define `JWT_SECRET`
+  (Base64 de al menos 32 bytes). Si lo cambias, los tokens emitidos antes dejan de ser válidos.
+- La cookie del refresh token es `Secure` por defecto. Si pruebas por HTTP local y quieres probar la
+  renovación de sesión, define `JWT_REFRESH_SECURE_COOKIE=false` antes de arrancar.
 
-## Crear un usuario desde Postman
+Al iniciar, `data.sql` carga (sin duplicar al reiniciar) 4 categorías, 6 productos (4 con descuento) y 3 usuarios.
 
-### Registrar un cliente
+## Usuarios de prueba
 
-1. Con el backend en ejecución, crea una solicitud `POST` a `http://localhost:8080/api/v1/auth/registro`.
-2. En **Authorization**, selecciona **No Auth**. En **Body**, selecciona **raw → JSON**. Postman enviará `Content-Type: application/json`.
-3. Usa un RUN y un correo que aún no estén registrados, y una contraseña de al menos 8 caracteres.
+| Rol | Correo | Contraseña |
+| --- | --- | --- |
+| administrador | `admin@duoc.cl` | `admin123` |
+| vendedor | `vendedor@duoc.cl` | `vende123` |
+| cliente | `carla@gmail.com` | `cliente123` |
 
-```json
-{
-  "run": "123456785",
-  "nombre": "Ana",
-  "apellidos": "Pérez",
-  "correo": "ana@example.com",
-  "password": "Prueba123!"
-}
+## Swagger
+
+Con el backend en ejecución: <http://localhost:8080/swagger-ui.html>.
+
+Swagger lista y documenta todos los endpoints. Para llamar a los protegidos, haz `POST /api/v1/auth/login`,
+copia el `accessToken` y envíalo como `Authorization: Bearer <token>` (por ejemplo desde Postman).
+
+## Quién puede qué
+
+| Endpoint | Acceso |
+| --- | --- |
+| `POST /auth/login`, `/auth/registro`, `/auth/refresh` | público |
+| `GET /productos`, `/categorias` y `POST /boletas` (compra) | público |
+| `GET /boletas`, `/ordenes` (y por id) | administrador y vendedor |
+| `POST/PUT/DELETE /productos`, `/usuarios` | administrador |
+
+La compra toma el usuario del token (sin token queda como invitado) y cobra el precio con descuento
+guardado en la base, no el que envía el navegador.
+
+## Tests
+
+```powershell
+.\mvnw.cmd test
 ```
 
-Al enviar la solicitud, el backend devuelve `201 Created` con `accessToken` y el perfil en `usuario`. El registro asigna el rol `cliente` y guarda la contraseña con BCrypt. Si el RUN o el correo ya existe, devuelve `409 Conflict`.
+Los tests de integración usan H2 en memoria, no necesitan MySQL.
 
-### Crear un usuario como administrador
+## Crear usuarios
 
-1. Envía un `POST` a `http://localhost:8080/api/v1/auth/login` con el `correo` y la `password` de una cuenta administradora en **Body → raw → JSON**. Copia el `accessToken` de la respuesta.
-2. Crea una solicitud `POST` a `http://localhost:8080/api/v1/usuarios`. En **Authorization**, selecciona **Bearer Token** y pega el token.
-3. En **Body → raw → JSON**, usa la misma estructura del ejemplo, con un RUN y un correo nuevos. Agrega `"tipo": "vendedor"` o el rol que corresponda (`administrador`, `vendedor` o `cliente`). En `password` envía un hash BCrypt ya generado, porque este endpoint guarda el valor recibido directamente.
-4. Envía la solicitud y comprueba que la respuesta sea `201 Created`.
+- **Cliente:** `POST /api/v1/auth/registro` con `run`, `nombre`, `apellidos`, `correo` y `password` (mínimo 8 caracteres).
+  Siempre se crea con rol `cliente`. Responde `409` si el RUN o el correo ya existen.
+- **Cualquier rol (administrador):** `POST /api/v1/usuarios` con `Authorization: Bearer <token de admin>`, el campo
+  `tipo` (`administrador`, `vendedor` o `cliente`) y la `password` en texto normal: el backend la encripta con BCrypt.
