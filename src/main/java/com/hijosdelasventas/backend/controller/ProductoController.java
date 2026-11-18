@@ -1,12 +1,16 @@
 package com.hijosdelasventas.backend.controller;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,24 +22,47 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/v1/productos")
-@Tag(name = "Productos", description = "API pública para el catálogo de productos")
+@Tag(name = "Productos", description = "API para la gestión del catálogo")
 public class ProductoController {
-
     @Autowired
     private ProductoService productoService;
 
     @GetMapping
-    @Operation(summary = "Obtener todos los productos", description = "Retorna la lista completa del catálogo")
+    @Operation(summary = "Listar todos los productos")
     public ResponseEntity<List<Producto>> listarProductos() {
-        List<Producto> productos = productoService.obtenerTodos();
-        return ResponseEntity.ok(productos);
+        return ResponseEntity.ok(productoService.obtenerTodos());
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Obtener producto por ID", description = "Retorna un producto específico si existe")
+    @Operation(summary = "Obtener un producto por ID")
     public ResponseEntity<Producto> obtenerProducto(@PathVariable Long id) {
-        Optional<Producto> producto = productoService.obtenerPorId(id);
-        return producto.map(ResponseEntity::ok)
-                       .orElseGet(() -> ResponseEntity.notFound().build()); // Retorna 404 si no existe, como pide la rúbrica
+        return productoService.obtenerPorId(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    @Operation(summary = "Crear un nuevo producto")
+    public ResponseEntity<Producto> crearProducto(@RequestBody Producto producto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(productoService.guardar(producto));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Actualizar un producto existente")
+    public ResponseEntity<Producto> actualizarProducto(@PathVariable Long id, @RequestBody Producto producto) {
+        return productoService.obtenerPorId(id).map(p -> {
+            producto.setId(id);
+            return ResponseEntity.ok(productoService.guardar(producto));
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar un producto")
+    public ResponseEntity<Void> eliminarProducto(@PathVariable Long id) {
+        if (productoService.obtenerPorId(id).isPresent()) {
+            productoService.eliminar(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
     }
 }
