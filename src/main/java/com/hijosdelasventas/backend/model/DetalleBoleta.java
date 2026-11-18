@@ -4,9 +4,17 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 @Entity
 @Table(name = "detalle_boleta")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class DetalleBoleta {
 
     @Id
@@ -31,17 +39,4 @@ public class DetalleBoleta {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "producto_id", nullable = false)
     private Producto producto;
-
-    public DetalleBoleta() {}
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public Integer getQuantity() { return quantity; }
-    public void setQuantity(Integer quantity) { this.quantity = quantity; }
-    public Integer getPrice() { return price; }
-    public void setPrice(Integer price) { this.price = price; }
-    public Boleta getBoleta() { return boleta; }
-    public void setBoleta(Boleta boleta) { this.boleta = boleta; }
-    public Producto getProducto() { return producto; }
-    public void setProducto(Producto producto) { this.producto = producto; }
 }

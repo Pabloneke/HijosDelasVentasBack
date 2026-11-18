@@ -2,12 +2,21 @@ package com.hijosdelasventas.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "boleta")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Boleta {
 
     @Id
@@ -42,35 +51,10 @@ public class Boleta {
     @JsonManagedReference
     private List<DetalleBoleta> items = new ArrayList<>();
 
-    public Boleta() {}
-
     @PrePersist
     public void prePersist() {
         if (this.fecha == null) {
             this.fecha = LocalDateTime.now();
         }
     }
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public LocalDateTime getFecha() { return fecha; }
-    public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
-    public Integer getTotal() { return total; }
-    public void setTotal(Integer total) { this.total = total; }
-    public String getClienteNombre() { return clienteNombre; }
-    public void setClienteNombre(String clienteNombre) { this.clienteNombre = clienteNombre; }
-    public String getClienteCorreo() { return clienteCorreo; }
-    public void setClienteCorreo(String clienteCorreo) { this.clienteCorreo = clienteCorreo; }
-    public String getModalidadEntrega() { return modalidadEntrega; }
-    public void setModalidadEntrega(String modalidadEntrega) { this.modalidadEntrega = modalidadEntrega; }
-    public String getDireccionEntrega() { return direccionEntrega; }
-    public void setDireccionEntrega(String direccionEntrega) { this.direccionEntrega = direccionEntrega; }
-    public String getRegionEntrega() { return regionEntrega; }
-    public void setRegionEntrega(String regionEntrega) { this.regionEntrega = regionEntrega; }
-    public String getComunaEntrega() { return comunaEntrega; }
-    public void setComunaEntrega(String comunaEntrega) { this.comunaEntrega = comunaEntrega; }
-    public Usuario getUsuario() { return usuario; }
-    public void setUsuario(Usuario usuario) { this.usuario = usuario; }
-    public List<DetalleBoleta> getItems() { return items; }
-    public void setItems(List<DetalleBoleta> items) { this.items = items; }
 }

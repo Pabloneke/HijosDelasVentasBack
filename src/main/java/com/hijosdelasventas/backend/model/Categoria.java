@@ -2,9 +2,15 @@ package com.hijosdelasventas.backend.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 @Entity
 @Table(name = "categoria")
+@Data // Genera automáticamente getters, setters, toString, equals y hashCode
+@NoArgsConstructor // Genera el constructor vacío Categoria()
+@AllArgsConstructor // Genera el constructor con argumentos Categoria(Long id, String nombre)
 public class Categoria {
 
     @Id
@@ -14,16 +20,4 @@ public class Categoria {
     @NotBlank(message = "El nombre de la categoría es obligatorio")
     @Column(nullable = false, unique = true)
     private String nombre;
-
-    public Categoria() {}
-
-    public Categoria(Long id, String nombre) {
-        this.id = id;
-        this.nombre = nombre;
-    }
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
 }
