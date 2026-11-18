@@ -41,6 +41,9 @@ public class BoletaService {
                 productoDB.setStock(productoDB.getStock() - detalle.getQuantity());
                 productoRepository.save(productoDB);
 
+                // ARREGLO PUNTO 7 DEL BRANCO: Agregamos el producto de la BD al detalle para que el frontend vea los nombres
+                detalle.setProducto(productoDB);
+
                 // SEGURIDAD: Forzamos el precio real desde la base de datos para evitar hackeos desde el frontend
                 detalle.setPrice(productoDB.getPrice());
 

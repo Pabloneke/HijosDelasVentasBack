@@ -1,14 +1,17 @@
 package com.hijosdelasventas.backend.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,9 +24,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/v1/usuarios")
-@Tag(name = "Usuarios", description = "API protegida para gestión de usuarios")
+@Tag(name = "Usuarios", description = "API para la gestión de usuarios y roles")
 public class UsuarioController {
-
     @Autowired
     private UsuarioService usuarioService;
 
@@ -34,7 +36,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Obtener usuario por ID")
+    @Operation(summary = "Obtener un usuario por ID")
     public ResponseEntity<Usuario> obtener(@PathVariable Long id) {
         return usuarioService.obtenerPorId(id)
                 .map(ResponseEntity::ok)
@@ -42,18 +44,34 @@ public class UsuarioController {
     }
 
     @PostMapping
-    @Operation(summary = "Crear nuevo usuario desde panel admin")
-    public ResponseEntity<Usuario> crear(@RequestBody Usuario usuario) {
-        Usuario nuevo = usuarioService.guardar(usuario);
-        return ResponseEntity.status(HttpStatus.CREATED).body(nuevo);
+    @Operation(summary = "Crear un nuevo usuario", description = "Encripta la contraseña automáticamente")
+    public ResponseEntity<?> crear(@RequestBody Usuario usuario) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.guardar(usuario, false));
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo o RUN ya están registrados"));
+        }
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Actualizar un usuario", description = "Mantiene la contraseña anterior si no se envía una nueva")
+    public ResponseEntity<?> actualizar(@PathVariable Long id, @RequestBody Usuario usuario) {
+        return usuarioService.obtenerPorId(id).map(u -> {
+            usuario.setId(id);
+            try {
+                return ResponseEntity.ok(usuarioService.guardar(usuario, true));
+            } catch (DataIntegrityViolationException e) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo o RUN ya están en uso"));
+            }
+        }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Eliminar usuario")
+    @Operation(summary = "Eliminar un usuario")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         if (usuarioService.obtenerPorId(id).isPresent()) {
             usuarioService.eliminar(id);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.notFound().build();
     }
