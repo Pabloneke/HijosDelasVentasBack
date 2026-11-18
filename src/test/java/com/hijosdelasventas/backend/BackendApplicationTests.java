@@ -1,7 +1,7 @@
 package com.hijosdelasventas.backend;
 
-import com.hijosdelasventas.backend.model.Usuario;
-import com.hijosdelasventas.backend.repository.UsuarioRepository;
+import com.hijosdelasventas.backend.model.*;
+import com.hijosdelasventas.backend.repository.*;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,16 +9,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
@@ -36,6 +33,7 @@ class BackendApplicationTests {
     @Autowired UsuarioRepository usuarios;
     @Autowired PasswordEncoder passwords;
     @Autowired ObjectMapper json;
+    @Autowired JdbcTemplate jdbc; // Usamos SQL directo para inyectar datos de prueba rápido
 
     @Test
     void registroLoginYRefresh() throws Exception {
@@ -95,5 +93,69 @@ class BackendApplicationTests {
             mvc.perform(patch(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
             mvc.perform(delete(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void crudProductoYErrores() throws Exception {
+        // 1. Admin login para tener permisos de todo
+        usuarios.save(new Usuario(null, "222222222", "Admin", "AdminTest", "admin2@example.com",
+                passwords.encode("admin123"), "administrador", null, null, null));
+        var session = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content("""
+                {"correo":"admin2@example.com","password":"admin123"}
+                """)).andExpect(status().isOk()).andReturn().getResponse();
+        String token = "Bearer " + json.readTree(session.getContentAsString()).get("accessToken").asText();
+
+        // 2. Forzamos una categoría con SQL para que el test no caiga por FK
+        try {
+            jdbc.execute("INSERT INTO categoria (id, nombre) VALUES (1, 'General')");
+        } catch (Exception e) { /* Ignorar si ya existe por data.sql o se llama distinto */ }
+
+        // 3. Crear Producto -> 201 Created
+        String jsonProducto = """
+                {"name":"Teclado","price":15000,"stock":10,"stockCritico":2,"category":{"id":1}}
+                """;
+        
+        var postRes = mvc.perform(post("/api/v1/productos")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonProducto))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.category").exists()) // Verifica P2: Viene con categoría
+                .andReturn().getResponse();
+
+        Long idProd = json.readTree(postRes.getContentAsString()).get("id").asLong();
+
+        // 4. DELETE responde 204
+        mvc.perform(delete("/api/v1/productos/" + idProd)
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNoContent());
+
+        // 5. ID inexistente responde 404
+        mvc.perform(delete("/api/v1/productos/99999")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNotFound());
+
+        // 6. 409 al borrar un producto con compras
+        var postRes2 = mvc.perform(post("/api/v1/productos")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonProducto))
+                .andReturn().getResponse();
+        Long idProd2 = json.readTree(postRes2.getContentAsString()).get("id").asLong();
+
+        String jsonBoleta = """
+                {"total":15000, "detalles": [{"producto": {"id": %d}, "cantidad": 1, "precioUnitario": 15000}]}
+                """.formatted(idProd2);
+        
+        mvc.perform(post("/api/v1/boletas")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonBoleta))
+                .andExpect(status().isCreated());
+
+        mvc.perform(delete("/api/v1/productos/" + idProd2)
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").exists());
     }
 }
