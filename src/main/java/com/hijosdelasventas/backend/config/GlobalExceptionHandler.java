@@ -3,6 +3,8 @@ package com.hijosdelasventas.backend.config;
 import java.util.HashMap;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,9 +16,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity handleDataIntegrity(DataIntegrityViolationException e) {
+    public ResponseEntity handleDataIntegrity(DataIntegrityViolationException e, HttpServletRequest request) {
+        // Un DELETE falla por la clave foránea (el registro tiene compras); un POST o PUT, por un RUN o correo repetido.
+        String mensaje = "DELETE".equals(request.getMethod())
+                ? "No se puede eliminar: el registro tiene compras asociadas"
+                : "El RUN o el correo ya están registrados";
         Map errorResponse = new HashMap();
-        errorResponse.put("message", "Conflicto de integridad: El registro ya existe o tiene ventas asociadas y no puede eliminarse");
+        errorResponse.put("message", mensaje);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 

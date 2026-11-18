@@ -225,4 +225,43 @@ class BackendApplicationTests {
                 .andExpect(jsonPath("$.descuento").value(20))
                 .andExpect(jsonPath("$.category.nombre").value("Perfumería"));
     }
+
+    @Test
+    @Transactional
+    void crearUsuarioConRunRepetidoResponde409ConMensajeDeRegistroRepetido() throws Exception {
+        mvc.perform(post("/api/v1/usuarios").header(HttpHeaders.AUTHORIZATION, bearer("admin@duoc.cl", "admin123"))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"run":"190110222","nombre":"Otro","apellidos":"Admin","correo":"otro@duoc.cl",
+                                 "password":"Clave12345","tipo":"vendedor"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("El RUN o el correo ya están registrados"));
+    }
+
+    @Test
+    void eliminarProductoConComprasResponde409ConMensajeDeComprasAsociadas() throws Exception {
+        // Sin @Transactional: el DELETE solo falla contra la clave foránea cuando la transacción se confirma.
+        // Usa un producto propio y limpia al final, para no alterar los datos iniciales de los demás tests.
+        String admin = bearer("admin@duoc.cl", "admin123");
+        String creado = mvc.perform(post("/api/v1/productos").header(HttpHeaders.AUTHORIZATION, admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"name":"Producto con ventas","price":1000,"stock":5,"stockCritico":1,"category":{"id":1}}
+                                """))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = json.readTree(creado).get("id").asLong();
+        try {
+            mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON).content("""
+                            {"clienteNombre":"Visita","clienteCorreo":"conflicto409@example.com",
+                             "items":[{"producto":{"id":%d},"quantity":1}]}
+                            """.formatted(id)))
+                    .andExpect(status().isCreated());
+            mvc.perform(delete("/api/v1/productos/" + id).header(HttpHeaders.AUTHORIZATION, admin))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value("No se puede eliminar: el registro tiene compras asociadas"));
+        } finally {
+            jdbc.update("DELETE FROM detalle_boleta WHERE producto_id = ?", id);
+            jdbc.update("DELETE FROM boleta WHERE cliente_correo = ?", "conflicto409@example.com");
+            jdbc.update("DELETE FROM producto WHERE id = ?", id);
+        }
+    }
 }
