@@ -109,3 +109,120 @@ class BackendApplicationTests {
         Usuario usuario = usuarios.findByCorreoIgnoreCase("carla@example.com").orElseThrow();
         assertThat(usuario.getPassword()).isNotEqualTo("cliente123");
         assertThat(passwords.matches("cliente123", usuario.getPassword())).isTrue();
+        mvc.perform(post(AUTH + "/registro").contentType(MediaType.APPLICATION_JSON).content(registration))
+                .andExpect(status().isConflict());
+
+        String login = """
+                {"correo":"CARLA@example.com","password":"cliente123"}
+                """;
+        var session = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content(login))
+                .andExpect(status().isOk())
+                .andExpect(cookie().httpOnly("refresh_token", true))
+                .andExpect(cookie().secure("refresh_token", true))
+                .andReturn().getResponse();
+        Cookie refresh = session.getCookie("refresh_token");
+        String accessToken = json.readTree(session.getContentAsString()).get("accessToken").asText();
+        mvc.perform(post(AUTH + "/refresh").cookie(refresh)).andExpect(status().isForbidden());
+        mvc.perform(post(AUTH + "/refresh").header("X-Refresh-Token", "1")
+                        .cookie(new Cookie("refresh_token", accessToken)))
+                .andExpect(status().isUnauthorized());
+        var renewed = mvc.perform(post(AUTH + "/refresh").header("X-Refresh-Token", "1").cookie(refresh))
+                .andExpect(status().isOk())
+                .andReturn().getResponse();
+        assertThat(json.readTree(renewed.getContentAsString()).get("accessToken").asText()).isNotEqualTo(accessToken);
+        mvc.perform(get("/api/v1/boletas").header(HttpHeaders.AUTHORIZATION, "Bearer " + refresh.getValue()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(login.replace("cliente123", "incorrecta")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void vendedorPuedeLeerVentasYConservaRestriccionesDeEscritura() throws Exception {
+        usuarios.save(new Usuario(null, "987654321", "Juan", "Pérez", "vendedor@example.com",
+                passwords.encode("vende123"), "vendedor", null, null, null));
+        var session = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content("""
+                {"correo":"vendedor@example.com","password":"vende123"}
+                """)).andExpect(status().isOk()).andReturn().getResponse();
+        String authorization = "Bearer " + json.readTree(session.getContentAsString()).get("accessToken").asText();
+        for (String resource : new String[]{"/api/v1/productos", "/api/v1/ordenes", "/api/v1/boletas"}) {
+            mvc.perform(get(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isOk());
+            mvc.perform(put(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
+            mvc.perform(patch(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
+            mvc.perform(delete(resource + "/1").header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
+        }
+        for (String resource : new String[]{"/api/v1/productos", "/api/v1/ordenes"}) {
+            mvc.perform(post(resource).header(HttpHeaders.AUTHORIZATION, authorization)).andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void visitantePuedeConsultarCatalogoEIniciarCompra() throws Exception {
+        for (String resource : new String[]{"/api/v1/productos", "/api/v1/categorias"}) {
+            mvc.perform(get(resource)).andExpect(status().isOk());
+            mvc.perform(get(resource + "/" + Long.MAX_VALUE)).andExpect(status().isNotFound());
+        }
+        mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+        for (String resource : new String[]{"/api/v1/ordenes", "/api/v1/boletas"}) {
+            mvc.perform(get(resource)).andExpect(status().isUnauthorized());
+        }
+    }
+
+    private String bearer(String correo, String password) throws Exception {
+        var sesion = mvc.perform(post(AUTH + "/login").contentType(MediaType.APPLICATION_JSON).content("""
+                {"correo":"%s","password":"%s"}
+                """.formatted(correo, password))).andExpect(status().isOk()).andReturn().getResponse();
+        return "Bearer " + json.readTree(sesion.getContentAsString()).get("accessToken").asText();
+    }
+
+    @Test
+    @Transactional
+    void compraConTokenQuedaAsignadaAlUsuarioDelTokenYCobraElDescuento() throws Exception {
+        Long idAdmin = usuarios.findByCorreoIgnoreCase("admin@duoc.cl").orElseThrow().getId();
+        // El cuerpo intenta comprar a nombre del administrador, pero el token es de Carla.
+        mvc.perform(post("/api/v1/boletas").header(HttpHeaders.AUTHORIZATION, bearer("carla@gmail.com", "cliente123"))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"clienteNombre":"Carla","clienteCorreo":"carla@gmail.com","total":1,
+                                 "fecha":"2000-01-01T00:00:00","usuario":{"id":%d},
+                                 "items":[{"quantity":2,"producto":{"id":5}}]}
+                                """.formatted(idAdmin)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.usuario.correo").value("carla@gmail.com"))
+                .andExpect(jsonPath("$.items[0].price").value(52500))   // 70000 con 25 % de descuento
+                .andExpect(jsonPath("$.items[0].producto.name").value("GTA VI (Pre-venta)"))
+                .andExpect(jsonPath("$.total").value(105000))
+                .andExpect(jsonPath("$.fecha").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.startsWith("2000"))));
+    }
+
+    @Test
+    @Transactional
+    void compraSinTokenQuedaComoInvitadoYBoletaVaciaSeRechaza() throws Exception {
+        Long idAdmin = usuarios.findByCorreoIgnoreCase("admin@duoc.cl").orElseThrow().getId();
+        mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"clienteNombre":"Visita","clienteCorreo":"visita@example.com","usuario":{"id":%d},
+                         "items":[{"quantity":1,"producto":{"id":2}}]}
+                        """.formatted(idAdmin)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.usuario").isEmpty())
+                .andExpect(jsonPath("$.total").value(15000));
+        mvc.perform(post("/api/v1/boletas").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"clienteNombre":"Visita","clienteCorreo":"visita@example.com","items":[]}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("La boleta no tiene productos"));
+    }
+
+    @Test
+    @Transactional
+    void editarProductoSinDescuentoConservaElQueTenia() throws Exception {
+        mvc.perform(put("/api/v1/productos/1").header(HttpHeaders.AUTHORIZATION, bearer("admin@duoc.cl", "admin123"))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"name":"Perfume Rasasi Hawas","price":65000,"stock":12,"stockCritico":3,
+                                 "category":{"id":4}}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.descuento").value(20))
+                .andExpect(jsonPath("$.category.nombre").value("Perfumería"));
+    }
+}
