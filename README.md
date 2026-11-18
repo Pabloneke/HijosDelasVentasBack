@@ -4,7 +4,9 @@ API REST con Spring Boot 4, JPA, MySQL, Spring Security y JWT. Todas las rutas c
 
 ## Arranque local
 
-Necesitas **MySQL 8** corriendo en `localhost:3306` con el usuario `root` sin contraseña
+Necesitas **JDK 17 o 21** (con JDK 23 o superior no compila: Lombok exige configuración adicional; el JDK 25 que trae Android Studio, por ejemplo, falla) y definir `JAVA_HOME` apuntando a él.
+
+También necesitas **MySQL 8** corriendo en `localhost:3306` con el usuario `root` sin contraseña
 (ajusta `spring.datasource.*` en `src/main/resources/application.properties` si el tuyo es distinto).
 La base `hijosdelasventas_db` se crea sola.
 
