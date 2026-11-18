@@ -40,8 +40,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/registro",
                                 "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/productos", "/api/v1/productos/**")
-                        .hasAnyRole("ADMINISTRADOR", "VENDEDOR", "CLIENTE")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/productos", "/api/v1/productos/**",
+                                "/api/v1/categorias", "/api/v1/categorias/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/boletas").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/ordenes", "/api/v1/ordenes/**",
                                 "/api/v1/boletas", "/api/v1/boletas/**")
                         .hasAnyRole("ADMINISTRADOR", "VENDEDOR")

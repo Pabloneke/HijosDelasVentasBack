@@ -19,12 +19,12 @@ public class CatalogoController {
         this.boletas = boletas;
     }
 
-    @GetMapping({"/ordenes", "/boletas"})
+    @GetMapping("/ordenes")
     public List<Boleta> ordenes() {
         return boletas.findAll();
     }
 
-    @GetMapping({"/ordenes/{id}", "/boletas/{id}"})
+    @GetMapping("/ordenes/{id}")
     public ResponseEntity<Boleta> orden(@PathVariable Long id) {
         return ResponseEntity.of(boletas.findById(id));
     }
